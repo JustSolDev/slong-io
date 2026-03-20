@@ -1,7 +1,6 @@
-# Error Log - Slong IO
+# Error Log
 
-## [2026-03-08 18:30] - GitHub Authentication Error
-- **Status**: FAILED
-- **Description**: `mcp_github-mcp-server_get_me` returned 401 Bad credentials.
-- **Impact**: Cannot push to GitHub automatically using MCP tools.
-- **Solution/Status**: Pending user input or manual git setup.
+## [2026-03-08 19:01] npm PS1 script execution disabled
+- **Error**: `npm : File C:\Program Files\nodejs\npm.ps1 cannot be loaded because running scripts is disabled on this system.`
+- **Context**: Attempting to run `npm run dev` in PowerShell.
+- **Resolution Path**: Attempting to run via `cmd /c` or `npx`.

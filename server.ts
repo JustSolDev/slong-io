@@ -48,16 +48,20 @@ interface RoomData {
 }
 const rooms = new Map<string, RoomData>();
 
-function spawnOrb(state: GameState, x?: number, y?: number, value = 1, color?: string, force = false, isMega = false) {
+function spawnOrb(state: GameState, x?: number, y?: number, value = 1, color?: string, force = false, isMega = false, vx = 0, vy = 0, spawnedBy?: string) {
   if (!force && Object.keys(state.orbs).length >= MAX_ORBS) return;
   const id = uuidv4();
   state.orbs[id] = {
     id,
     x: x ?? (Math.random() - 0.5) * WORLD_SIZE,
     y: y ?? (Math.random() - 0.5) * WORLD_SIZE,
+    vx,
+    vy,
     value,
     color: color ?? COLORS[Math.floor(Math.random() * COLORS.length)],
     isMega,
+    createdAt: Date.now(),
+    spawnedBy,
   };
 }
 
@@ -346,8 +350,10 @@ setInterval(() => {
         }
 
         // Bot collisions with orbs
+        const now = Date.now();
         for (const orbId in state.orbs) {
           const orb = state.orbs[orbId];
+          if (orb.spawnedBy === id && orb.createdAt && now - orb.createdAt < 1000) continue;
           const dx = head.x - orb.x;
           const dy = head.y - orb.y;
           const collisionRadius = orb.isMega ? 16 : 4;
@@ -416,13 +422,22 @@ setInterval(() => {
       }
     }
 
-    // Update players (just for boosting orb drops)
+    // Update players (boost drops from the tip - "Extreme Nut Burst")
     for (const id in state.players) {
       const player = state.players[id];
       if (player.state === 'alive' && player.isBoosting) {
-        if (Math.random() < 0.1 && player.segments.length > 0) {
-          const tail = player.segments[player.segments.length - 1];
-          spawnOrb(state, tail.x, tail.y, 1, player.color, true);
+        if (Math.random() < 0.4 && player.segments.length > 0) {
+          const head = player.segments[0];
+          // Extreme spread (approx 270 degrees)
+          const spreadAngle = (Math.random() - 0.5) * Math.PI * 1.5; 
+          const angle = player.currentAngle + spreadAngle; 
+          const speed = 60 + Math.random() * 40;
+          const vx = Math.cos(angle) * speed;
+          const vy = Math.sin(angle) * speed;
+          // Offset emission point WAY ahead from head (offset 8)
+          const startX = head.x + Math.cos(player.currentAngle) * 8;
+          const startY = head.y + Math.sin(player.currentAngle) * 8;
+          spawnOrb(state, startX, startY, 1, player.color, true, false, vx, vy, id);
         }
       }
     }
@@ -430,6 +445,29 @@ setInterval(() => {
     // Spawn random orbs
     if (Math.random() < 0.2) {
       spawnOrb(state);
+    }
+
+    // Update orb physics
+    for (const id in state.orbs) {
+      const orb = state.orbs[id];
+      if (orb.vx || orb.vy) {
+        orb.x += (orb.vx ?? 0) * delta;
+        orb.y += (orb.vy ?? 0) * delta;
+        // Friction
+        orb.vx = (orb.vx ?? 0) * 0.95;
+        orb.vy = (orb.vy ?? 0) * 0.95;
+        // Stop if too slow
+        if (Math.abs(orb.vx) < 0.1 && Math.abs(orb.vy) < 0.1) {
+          orb.vx = 0;
+          orb.vy = 0;
+        }
+        
+        // Boundary check
+        const boundary = WORLD_SIZE / 2;
+        if (orb.x < -boundary || orb.x > boundary || orb.y < -boundary || orb.y > boundary) {
+          delete state.orbs[id];
+        }
+      }
     }
 
     // Update leaderboard

@@ -42,9 +42,13 @@ export type Orb = {
   id: string;
   x: number;
   y: number;
+  vx?: number;
+  vy?: number;
   value: number;
   color: string;
   isMega?: boolean;
+  createdAt?: number;
+  spawnedBy?: string;
 };
 
 export type LeaderboardEntry = {

@@ -17,13 +17,14 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
   const bodyStemRef = useRef<THREE.InstancedMesh>(null);
   const bodyCapRef = useRef<THREE.InstancedMesh>(null);
   const headGroupRef = useRef<THREE.Group>(null);
+  const tailBallsRef = useRef<THREE.Group>(null);
   const sporeRef = useRef<THREE.InstancedMesh>(null);
   const dummy = useMemo(() => new THREE.Object3D(), []);
   const dummyCap = useMemo(() => new THREE.Object3D(), []);
   const dummySpore = useMemo(() => new THREE.Object3D(), []);
   const colorObj = useMemo(() => new THREE.Color(), []);
   const currentPositions = useRef<{x: number, y: number}[]>([]);
-  const spores = useRef<{x: number, y: number, time: number, life: number}[]>([]);
+  const spores = useRef<{x: number, y: number, vx?: number, vy?: number, time: number, life: number}[]>([]);
 
   const getSkinColor = (baseColor: string, skinLevel: number) => {
     if (skinLevel === 1) return '#FFD700'; // Gold
@@ -38,7 +39,7 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
     if (!gs) return;
     
     const player = gs.players[playerId];
-    if (!player || player.segments.length === 0) {
+    if (!player || player.state === 'dead' || player.segments.length === 0) {
       bodyStemRef.current.count = 0;
       bodyCapRef.current.count = 0;
       sporeRef.current.count = 0;
@@ -96,23 +97,31 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
       } else {
         // Stem
         dummy.position.set(curr.x, curr.y, 0.3);
-        dummy.rotation.set(Math.PI/2, 0, 0);
-        dummy.updateMatrix();
-        bodyStemRef.current.setMatrixAt(i - 1, dummy.matrix);
-
         // Cap
         dummyCap.position.set(curr.x, curr.y, 0.6);
-        const wobbleX = Math.sin(time * 10 + i) * 0.15;
-        const wobbleY = Math.cos(time * 10 + i) * 0.15;
+        const wobbleX = Math.sin(time * 10 + i) * 0.08;
+        const wobbleY = Math.cos(time * 10 + i) * 0.08;
+        
+        // Smoother ribbed scaling: use a tighter sin wave
+        const ribScale = 1.0 + Math.sin(i * 2.5) * 0.12;
+        dummyCap.scale.set(ribScale, ribScale, 1.0);
+        
         dummyCap.rotation.set(Math.PI/2 + wobbleX, wobbleY, 0);
-        dummyCap.scale.set(1, 1, 0.8);
         dummyCap.updateMatrix();
         bodyCapRef.current.setMatrixAt(i - 1, dummyCap.matrix);
 
-        // Color
-        colorObj.set(activeColor);
-        colorObj.offsetHSL((i * 0.03) % 1, 0, 0);
+        // Stem matching rib scale and overlapping more for "ribbed" look
+        dummy.position.copy(dummyCap.position);
+        dummy.rotation.set(Math.PI/2, 0, 0);
+        // Slightly taller cylinder to ensure overlap
+        dummy.scale.set(ribScale * 0.95, 1.2, ribScale * 0.95);
+        dummy.updateMatrix();
+        bodyStemRef.current.setMatrixAt(i - 1, dummy.matrix);
+
+        // Color: Vibrant Hot Pink
+        colorObj.set("#ff1493");
         bodyCapRef.current.setColorAt(i - 1, colorObj);
+        bodyStemRef.current.setColorAt(i - 1, colorObj);
       }
     }
     
@@ -121,24 +130,47 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
     if (bodyCapRef.current.instanceColor) {
       bodyCapRef.current.instanceColor.needsUpdate = true;
     }
+    if (bodyStemRef.current.instanceColor) {
+      bodyStemRef.current.instanceColor.needsUpdate = true;
+    }
 
     // Spores logic
-    if (player.isBoosting && count > 0) {
-      const tail = currentPositions.current[count - 1];
-      if (Math.random() < 0.4) {
-        spores.current.push({ x: tail.x + (Math.random()-0.5)*1.5, y: tail.y + (Math.random()-0.5)*1.5, time, life: 1.0 });
-      }
+    if (isLocal && player.isBoosting && Math.random() < 0.7) {
+      const head = player.segments[0];
+      // Wide explosive spread — shoots from the tip outward in a cone
+      const spreadAngle = (Math.random() - 0.5) * Math.PI * 1.4; // ~250° cone
+      const angle = player.currentAngle + spreadAngle;
+      const shootSpeed = 45 + Math.random() * 80;
+      // Spawn from well ahead of the tip
+      const shootOffset = 3.5;
+      // Random distance ahead so some shoot far, some closer
+      const forwardBias = Math.cos(spreadAngle) * 20;
+      spores.current.push({ 
+        x: head.x + Math.cos(player.currentAngle) * shootOffset, 
+        y: head.y + Math.sin(player.currentAngle) * shootOffset, 
+        vx: Math.cos(angle) * (shootSpeed + forwardBias),
+        vy: Math.sin(angle) * (shootSpeed + forwardBias),
+        time, 
+        life: 1.4
+      });
     }
     
     let sporeIdx = 0;
     for (let i = spores.current.length - 1; i >= 0; i--) {
       const s = spores.current[i];
-      s.life -= delta * 1.5;
+      s.life -= delta * 1.0; // slower decay so they travel further
       if (s.life <= 0) {
         spores.current.splice(i, 1);
       } else {
-        dummySpore.position.set(s.x, s.y, 0.2 + (1 - s.life));
-        const scale = s.life * 0.6;
+        if (s.vx !== undefined && s.vy !== undefined) {
+          // Decelerate over time like real fluid
+          s.vx *= 0.97;
+          s.vy *= 0.97;
+          s.x += s.vx * delta;
+          s.y += s.vy * delta;
+        }
+        dummySpore.position.set(s.x, s.y, 0.2 + (1 - s.life) * 0.5);
+        const scale = s.life * 0.75;
         dummySpore.scale.set(scale, scale, scale);
         dummySpore.updateMatrix();
         sporeRef.current.setMatrixAt(sporeIdx, dummySpore.matrix);
@@ -151,6 +183,17 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
     sporeRef.current.count = sporeIdx;
     sporeRef.current.instanceMatrix.needsUpdate = true;
     if (sporeRef.current.instanceColor) sporeRef.current.instanceColor.needsUpdate = true;
+
+    // Update Tail Balls Position & Rotation
+    if (tailBallsRef.current && count > 2) {
+      const tail = currentPositions.current[count - 1];
+      const prevTail = currentPositions.current[count - 2];
+      tailBallsRef.current.position.set(tail.x, tail.y, 0.5);
+      tailBallsRef.current.rotation.z = Math.atan2(prevTail.y - tail.y, prevTail.x - tail.x) - Math.PI / 2;
+      tailBallsRef.current.visible = true;
+    } else if (tailBallsRef.current) {
+      tailBallsRef.current.visible = false;
+    }
   });
 
   const activeColor = globalGameState.current?.players[playerId] ? getSkinColor(color, globalGameState.current.players[playerId].skin || 0) : color;
@@ -159,61 +202,86 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
   return (
     <group>
       <group ref={headGroupRef}>
-        {/* Head Stem */}
-        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0]} castShadow receiveShadow>
-          <cylinderGeometry args={[0.35, 0.35, 0.6, 16]} />
-          <meshStandardMaterial color="#eeeeee" roughness={0.3} />
+        {/* Shaft base */}
+        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, -0.4]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.85, 0.85, 1.2, 16]} />
+          <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
         </mesh>
-        {/* Head Cap */}
-        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.4]} scale={[1.2, 1.2, 0.9]} castShadow receiveShadow>
-          <sphereGeometry args={[0.8, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
-          <meshStandardMaterial color={activeColor} emissive={activeColor} emissiveIntensity={skinLevel >= 2 || globalGameState.current?.kingId === playerId ? 1.2 : 0.6} toneMapped={false} />
+        {/* Neck taper — narrower before flaring into glans */}
+        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.3]} castShadow receiveShadow>
+          <cylinderGeometry args={[0.72, 0.85, 0.35, 16]} />
+          <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
         </mesh>
-        {/* Googly Eyes */}
-        <group position={[0, 0.6, 0.5]}>
-          {/* Left Eye */}
-          <mesh position={[-0.35, 0, 0]}>
-            <sphereGeometry args={[0.25, 16, 16]} />
-            <meshBasicMaterial color="white" />
-          </mesh>
-          <mesh position={[-0.35, 0.15, 0.15]}>
-            <sphereGeometry args={[0.1, 8, 8]} />
-            <meshBasicMaterial color="black" />
-          </mesh>
-          {/* Right Eye */}
-          <mesh position={[0.35, 0, 0]}>
-            <sphereGeometry args={[0.25, 16, 16]} />
-            <meshBasicMaterial color="white" />
-          </mesh>
-          <mesh position={[0.35, 0.15, 0.15]}>
-            <sphereGeometry args={[0.1, 8, 8]} />
-            <meshBasicMaterial color="black" />
-          </mesh>
-        </group>
+        {/* Corona ridge — pronounced flare */}
+        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.52]}>
+           <torusGeometry args={[0.98, 0.22, 16, 32]} />
+           <meshStandardMaterial color="#ff3fa8" roughness={0.1} metalness={0.1} />
+        </mesh>
+        {/* Glans dome — proper bullet/helmet shape */}
+        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.82]} scale={[1.15, 1.15, 1.6]} castShadow receiveShadow>
+          <sphereGeometry args={[0.92, 32, 20, 0, Math.PI * 2, 0, Math.PI / 1.65]} />
+          <meshStandardMaterial 
+            color="#ff59bc" 
+            emissive="#ff1493" 
+            emissiveIntensity={skinLevel >= 2 || globalGameState.current?.kingId === playerId ? 0.3 : 0.08} 
+            roughness={0.03}
+            metalness={0.2}
+            toneMapped={false} 
+          />
+        </mesh>
+        {/* Glans tip cap to close the dome */}
+        <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 1.78]} scale={[1.15, 1.15, 1.0]}>
+          <sphereGeometry args={[0.28, 20, 12]} />
+          <meshStandardMaterial color="#ff6ec9" roughness={0.05} metalness={0.2} toneMapped={false} />
+        </mesh>
+        {/* Meatus — vertical slit opening at the very tip */}
+        <mesh position={[0, 0.01, 2.04]} rotation={[0, 0, 0]}>
+           <boxGeometry args={[0.055, 0.32, 0.055]} />
+           <meshBasicMaterial color="#3a0015" />
+        </mesh>
+        <mesh position={[0, 0.01, 2.05]} rotation={[0, 0, 0]}>
+           <boxGeometry args={[0.03, 0.2, 0.03]} />
+           <meshBasicMaterial color="#6b0028" transparent opacity={0.5} />
+        </mesh>
+        {/* Rim highlight ring around meatus */}
+        <mesh position={[0, 0, 1.99]} rotation={[0, 0, 0]}>
+           <torusGeometry args={[0.13, 0.025, 16, 32]} />
+           <meshStandardMaterial color="#ff90d0" roughness={0.05} emissive="#ff1493" emissiveIntensity={0.35} transparent opacity={0.7} />
+        </mesh>
+        {/* Veins */}
+        <mesh position={[0.42, 0.18, -0.15]} rotation={[0, 0.2, 0.35]}>
+           <cylinderGeometry args={[0.045, 0.045, 1.3, 8]} />
+           <meshStandardMaterial color="#ff4fb2" roughness={0.2} transparent opacity={0.65} />
+        </mesh>
+        <mesh position={[-0.42, -0.18, -0.05]} rotation={[0, -0.2, -0.28]}>
+           <cylinderGeometry args={[0.035, 0.035, 1.1, 8]} />
+           <meshStandardMaterial color="#ff4fb2" roughness={0.2} transparent opacity={0.65} />
+        </mesh>
+      </group>
+
+      <group ref={tailBallsRef}>
+        <mesh position={[-1.1, -0.8, 0]} castShadow receiveShadow>
+          <sphereGeometry args={[1.5, 24, 24]} />
+          <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
+        </mesh>
+        <mesh position={[1.1, -0.8, 0]} castShadow receiveShadow>
+          <sphereGeometry args={[1.5, 24, 24]} />
+          <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
+        </mesh>
       </group>
 
       <instancedMesh ref={bodyStemRef} args={[null as any, null as any, 2000]} castShadow receiveShadow frustumCulled={false}>
-        <cylinderGeometry args={[0.25, 0.25, 0.5, 16]} />
-        <meshStandardMaterial color="#eeeeee" roughness={0.5} />
+        <cylinderGeometry args={[0.8, 0.8, 0.5, 16]} />
+        <meshStandardMaterial color="#ff9a9e" roughness={0.4} />
       </instancedMesh>
 
       <instancedMesh ref={bodyCapRef} args={[null as any, null as any, 2000]} castShadow receiveShadow frustumCulled={false}>
-        <sphereGeometry args={[0.6, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]} />
+        <sphereGeometry args={[1.0, 16, 16]} />
         <meshStandardMaterial
-          color="#ffffff"
-          roughness={0.2}
+          color="#ff9a9e"
+          roughness={0.4}
           metalness={0.1}
           toneMapped={false}
-          onBeforeCompile={(shader) => {
-            shader.fragmentShader = shader.fragmentShader.replace(
-              '#include <emissivemap_fragment>',
-              `
-              #include <emissivemap_fragment>
-              float fresnel = pow(1.0 - max(dot(normal, normalize(vViewPosition)), 0.0), 2.0);
-              totalEmissiveRadiance += diffuseColor.rgb * (0.8 + fresnel * 2.0);
-              `
-            );
-          }}
         />
       </instancedMesh>
 
@@ -388,7 +456,7 @@ function DeathBurst({ position, color }: { position: {x: number, y: number}, col
 export function GameScene() {
   const { gameState, playerId, sendPlayerState, sendCollectOrb } = useGameStore();
   const { camera } = useThree();
-  const inputs = useRef({ left: false, right: false, boost: false });
+  const inputs = useRef({ mouseX: 1, mouseY: 0, boost: false });
   const lightRef = useRef<THREE.DirectionalLight>(null);
   const [lightTarget] = useState(() => new THREE.Object3D());
   const [deathBursts, setDeathBursts] = useState<{id: string, position: {x: number, y: number}, color: string, time: number}[]>([]);
@@ -409,6 +477,7 @@ export function GameScene() {
     longestLength: number;
     xp: number;
     skin: number;
+    wallHugTime: number;
   }>({
     active: false,
     state: 'alive',
@@ -421,39 +490,54 @@ export function GameScene() {
     longestLength: 10,
     xp: 0,
     skin: 0,
+    wallHugTime: 0,
   });
 
   useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      inputs.current.mouseX = e.clientX - window.innerWidth / 2;
+      inputs.current.mouseY = window.innerHeight / 2 - e.clientY;
+    };
+    
+    const handlePointerDown = (e: PointerEvent) => {
+      // Left click boosts
+      if (e.button === 0) inputs.current.boost = true;
+    };
+    
+    const handlePointerUp = (e: PointerEvent) => {
+      if (e.button === 0) inputs.current.boost = false;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') && !inputs.current.left) { inputs.current.left = true; }
-      if ((e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') && !inputs.current.right) { inputs.current.right = true; }
       if ((e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') && !inputs.current.boost) { inputs.current.boost = true; }
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      if ((e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') && inputs.current.left) { inputs.current.left = false; }
-      if ((e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') && inputs.current.right) { inputs.current.right = false; }
       if ((e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') && inputs.current.boost) { inputs.current.boost = false; }
     };
 
     const handleBlur = () => {
-      inputs.current = { left: false, right: false, boost: false };
+      inputs.current.boost = false;
     };
 
     const handleGameInput = (e: Event) => {
       const customEvent = e as CustomEvent;
       const { key, value } = customEvent.detail;
-      if (key === 'left') inputs.current.left = value;
-      if (key === 'right') inputs.current.right = value;
       if (key === 'boost') inputs.current.boost = value;
     };
 
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointerup', handlePointerUp);
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', handleBlur);
     window.addEventListener('game-input', handleGameInput);
 
     return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointerup', handlePointerUp);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
@@ -530,8 +614,19 @@ export function GameScene() {
       const sizePenalty = Math.max(0.6, 1 - (localPlayerRef.current.score / 2000));
       const currentTurnSpeed = TURN_SPEED * sizePenalty;
 
-      if (inputs.current.left) localPlayerRef.current.currentAngle += currentTurnSpeed * effectiveDelta;
-      if (inputs.current.right) localPlayerRef.current.currentAngle -= currentTurnSpeed * effectiveDelta;
+      // Calculate target angle towards mouse cursor
+      const targetAngle = Math.atan2(inputs.current.mouseY, inputs.current.mouseX);
+      
+      let angleDiff = targetAngle - localPlayerRef.current.currentAngle;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      
+      const turnStep = currentTurnSpeed * effectiveDelta;
+      if (Math.abs(angleDiff) < turnStep) {
+        localPlayerRef.current.currentAngle = targetAngle;
+      } else {
+        localPlayerRef.current.currentAngle += Math.sign(angleDiff) * turnStep;
+      }
       
       localPlayerRef.current.isBoosting = inputs.current.boost && localPlayerRef.current.score > 10;
       
@@ -550,10 +645,18 @@ export function GameScene() {
 
       // Boundary check
       const boundary = WORLD_SIZE / 2;
-      if (head.x < -boundary) head.x = -boundary;
-      if (head.x > boundary) head.x = boundary;
-      if (head.y < -boundary) head.y = -boundary;
-      if (head.y > boundary) head.y = boundary;
+      let huggingWall = false;
+      if (head.x < -boundary) { head.x = -boundary; huggingWall = true; }
+      if (head.x > boundary) { head.x = boundary; huggingWall = true; }
+      if (head.y < -boundary) { head.y = -boundary; huggingWall = true; }
+      if (head.y > boundary) { head.y = boundary; huggingWall = true; }
+
+      if (huggingWall) {
+        // Only increase time if pushing against the wall
+        localPlayerRef.current.wallHugTime += delta;
+      } else {
+        localPlayerRef.current.wallHugTime = 0;
+      }
 
       localPlayerRef.current.segments.unshift(head);
 
@@ -571,13 +674,15 @@ export function GameScene() {
         localPlayerRef.current.segments.pop();
       }
 
-      // Check orb collisions
+      const nowTime = Date.now();
       for (const orbId in gs.orbs) {
         if (localCollectedOrbs.has(orbId)) continue;
         const orb = gs.orbs[orbId];
+        // Skip collection for own orbs for 1 second
+        if (orb.spawnedBy === playerId && orb.createdAt && nowTime - orb.createdAt < 1000) continue;
         const dx = head.x - orb.x;
         const dy = head.y - orb.y;
-        const collisionRadius = orb.isMega ? 16 : 4; // 4^2 vs 2^2
+        const collisionRadius = orb.isMega ? 16 : 4; 
         if (dx * dx + dy * dy < collisionRadius) {
           localPlayerRef.current.score += orb.value;
           localPlayerRef.current.xp += orb.isMega ? 50 : 10;
@@ -612,6 +717,12 @@ export function GameScene() {
           }
         }
         if (collided) break;
+      }
+
+      // Check wall hug death
+      if (localPlayerRef.current.wallHugTime > 2.0) {
+        collided = true;
+        killerId = null; // Died to environment
       }
 
       if (collided) {
