@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
-*/
+ */
 
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
@@ -422,19 +422,17 @@ setInterval(() => {
       }
     }
 
-    // Update players (boost drops from the tip - "Extreme Nut Burst")
+    // Update players (boost drops from the tip)
     for (const id in state.players) {
       const player = state.players[id];
       if (player.state === 'alive' && player.isBoosting) {
         if (Math.random() < 0.4 && player.segments.length > 0) {
           const head = player.segments[0];
-          // Extreme spread (approx 270 degrees)
           const spreadAngle = (Math.random() - 0.5) * Math.PI * 1.5; 
           const angle = player.currentAngle + spreadAngle; 
           const speed = 60 + Math.random() * 40;
           const vx = Math.cos(angle) * speed;
           const vy = Math.sin(angle) * speed;
-          // Offset emission point WAY ahead from head (offset 8)
           const startX = head.x + Math.cos(player.currentAngle) * 8;
           const startY = head.y + Math.sin(player.currentAngle) * 8;
           spawnOrb(state, startX, startY, 1, player.color, true, false, vx, vy, id);
@@ -485,9 +483,8 @@ setInterval(() => {
         state.kingId = currentLeader.id;
         room.kingTime = now;
       } else if (now - room.kingTime > 60000 && !state.announcement) {
-        // Broadcast King announcement once
         state.announcement = { text: `${currentLeader.name} IS THE KING!`, time: Date.now() };
-        room.kingTime = now + 999999; // Prevent re-announcing
+        room.kingTime = now + 999999;
       }
     } else {
       state.kingId = undefined;
