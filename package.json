@@ -1,7 +1,7 @@
 {
-  "name": "slong-io",
+  "name": "react-example",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "start": "node server.ts",
