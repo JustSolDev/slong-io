@@ -48,7 +48,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (get().socket) return;
     
     set({ roomId, inLobby: false });
-    const socket = io({ query: { room: roomId } });
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+    const socket = io(backendUrl, { query: { room: roomId } });
 
     socket.on('connect', () => {
       console.log('Connected to server');
