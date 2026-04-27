@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- */
+*/
 
 import { useGameStore } from '../store/gameStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,7 +47,7 @@ export function UI() {
       <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-50 pointer-events-auto">
         <div className="bg-zinc-900/90 p-8 rounded-3xl border border-white/10 shadow-2xl max-w-md w-full flex flex-col items-center gap-6">
           <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-cyan-400 to-lime-400 tracking-tighter" style={{ filter: 'drop-shadow(0 0 10px rgba(0,255,255,0.8))' }}>
-            SLONG.IO
+            SLONG.XYZ
           </h1>
           
           <div className="w-full space-y-4 mt-4">
@@ -136,7 +136,7 @@ export function UI() {
       <div className="flex justify-between items-start pointer-events-auto relative">
         <div className="flex flex-col gap-2 z-10">
           <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-cyan-400 to-lime-400 tracking-tighter" style={{ filter: 'drop-shadow(0 0 10px rgba(0,255,255,0.8))' }}>
-            SLONG.IO
+            SLONG.XYZ
           </h1>
           {isAlive && (
             <div className="flex flex-col gap-2 mt-2">
