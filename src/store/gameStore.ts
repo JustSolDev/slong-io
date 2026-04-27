@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- */
+*/
 
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
