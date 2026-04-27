@@ -1,4 +1,4 @@
-# PRD - Slong IO (Multiplayer Neon Snake)
+# PRD - Slong XYZ (Multiplayer Neon Snake)
 
 ## Narrative & Vibe
 "Slong" is a high-octane, multiplayer neon snake game where players compete to grow the longest "Slong" in a 3D digital arena. The vibe is futuristic, fast-paced, and community-driven, optimized for the Solana ecosystem.
@@ -10,10 +10,10 @@
 
 ## Feature Requirements
 - [x] **Core Gameplay**: Multiplayer snake mechanics (unzipped from AI Studio).
-- [ ] **3D Visuals**: Neon aesthetic using Three.js and React Three Fiber.
-- [ ] **Real-time Networking**: Socket.io for low-latency multiplayer.
-- [ ] **AI Integration**: Powered by Google Gemini (GenAI) for dynamic game elements.
-- [ ] **Leaderboard**: Simple SQLite-backed scoring system.
+- [x] **3D Visuals**: Neon aesthetic using Three.js and React Three Fiber.
+- [x] **Real-time Networking**: Socket.io for low-latency multiplayer.
+- [x] **AI Integration**: Powered by Google Gemini (GenAI) for dynamic game elements.
+- [x] **Leaderboard**: Simple SQLite-backed scoring system.
 - [ ] **Meme Coin Integration**: Potential for wallet connection and token-gated features.
 
 ## Project Scope
