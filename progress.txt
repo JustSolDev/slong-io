@@ -6,3 +6,5 @@
 [2026-03-08 18:38] - Initialization phase complete. Awaiting GitHub push.
 [2026-04-27 07:47] - Updated domain/branding from Slong.io to Slong.xyz across PRD, README, UI, and HTML.
 [2026-04-27 09:21] - Repository made public. Triggering Vercel rebuild for Slong.xyz migration.
+[2026-04-27 12:08] - Fixed Vercel build errors (tsconfig.node.json). Branding is now LIVE on slong-io.vercel.app.
+[2026-04-27 12:08] - Prepared codebase for external hosting (Render/Glitch ready). Added VITE_BACKEND_URL support. Project paused.
