@@ -1,7 +1,7 @@
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
- */
+*/
 
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
@@ -207,17 +207,17 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
           <cylinderGeometry args={[0.85, 0.85, 1.2, 16]} />
           <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
         </mesh>
-        {/* Neck taper */}
+        {/* Neck taper — narrower before flaring into glans */}
         <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.3]} castShadow receiveShadow>
           <cylinderGeometry args={[0.72, 0.85, 0.35, 16]} />
           <meshStandardMaterial color="#ff1493" roughness={0.3} metalness={0.1} />
         </mesh>
-        {/* Corona ridge */}
+        {/* Corona ridge — pronounced flare */}
         <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.52]}>
            <torusGeometry args={[0.98, 0.22, 16, 32]} />
            <meshStandardMaterial color="#ff3fa8" roughness={0.1} metalness={0.1} />
         </mesh>
-        {/* Glans dome */}
+        {/* Glans dome — proper bullet/helmet shape */}
         <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 0.82]} scale={[1.15, 1.15, 1.6]} castShadow receiveShadow>
           <sphereGeometry args={[0.92, 32, 20, 0, Math.PI * 2, 0, Math.PI / 1.65]} />
           <meshStandardMaterial 
@@ -229,12 +229,12 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
             toneMapped={false} 
           />
         </mesh>
-        {/* Glans tip cap */}
+        {/* Glans tip cap to close the dome */}
         <mesh rotation={[Math.PI/2, 0, 0]} position={[0, 0, 1.78]} scale={[1.15, 1.15, 1.0]}>
           <sphereGeometry args={[0.28, 20, 12]} />
           <meshStandardMaterial color="#ff6ec9" roughness={0.05} metalness={0.2} toneMapped={false} />
         </mesh>
-        {/* Meatus */}
+        {/* Meatus — vertical slit opening at the very tip */}
         <mesh position={[0, 0.01, 2.04]} rotation={[0, 0, 0]}>
            <boxGeometry args={[0.055, 0.32, 0.055]} />
            <meshBasicMaterial color="#3a0015" />
@@ -243,7 +243,7 @@ function Snake({ playerId, color, isLocal }: { playerId: string, color: string, 
            <boxGeometry args={[0.03, 0.2, 0.03]} />
            <meshBasicMaterial color="#6b0028" transparent opacity={0.5} />
         </mesh>
-        {/* Rim highlight ring */}
+        {/* Rim highlight ring around meatus */}
         <mesh position={[0, 0, 1.99]} rotation={[0, 0, 0]}>
            <torusGeometry args={[0.13, 0.025, 16, 32]} />
            <meshStandardMaterial color="#ff90d0" roughness={0.05} emissive="#ff1493" emissiveIntensity={0.35} transparent opacity={0.7} />
@@ -652,6 +652,7 @@ export function GameScene() {
       if (head.y > boundary) { head.y = boundary; huggingWall = true; }
 
       if (huggingWall) {
+        // Only increase time if pushing against the wall
         localPlayerRef.current.wallHugTime += delta;
       } else {
         localPlayerRef.current.wallHugTime = 0;
@@ -660,7 +661,7 @@ export function GameScene() {
       localPlayerRef.current.segments.unshift(head);
 
       if (localPlayerRef.current.isBoosting) {
-        localPlayerRef.current.score -= 15 * effectiveDelta;
+        localPlayerRef.current.score -= 15 * effectiveDelta; // Increased from 2 to 15 to prevent infinite growth exploit
         if (localPlayerRef.current.score <= 10) {
           localPlayerRef.current.isBoosting = false;
           localPlayerRef.current.score = 10;
@@ -677,6 +678,7 @@ export function GameScene() {
       for (const orbId in gs.orbs) {
         if (localCollectedOrbs.has(orbId)) continue;
         const orb = gs.orbs[orbId];
+        // Skip collection for own orbs for 1 second
         if (orb.spawnedBy === playerId && orb.createdAt && nowTime - orb.createdAt < 1000) continue;
         const dx = head.x - orb.x;
         const dy = head.y - orb.y;
@@ -685,7 +687,7 @@ export function GameScene() {
           localPlayerRef.current.score += orb.value;
           localPlayerRef.current.xp += orb.isMega ? 50 : 10;
           localCollectedOrbs.add(orbId);
-          delete gs.orbs[orbId];
+          delete gs.orbs[orbId]; // predict locally
           sendCollectOrb(orbId);
           playEatSound();
         }
@@ -720,7 +722,7 @@ export function GameScene() {
       // Check wall hug death
       if (localPlayerRef.current.wallHugTime > 2.0) {
         collided = true;
-        killerId = null;
+        killerId = null; // Died to environment
       }
 
       if (collided) {
